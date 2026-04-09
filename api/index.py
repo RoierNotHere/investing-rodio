@@ -2,41 +2,52 @@ from http.server import BaseHTTPRequestHandler
 import cloudscraper
 from bs4 import BeautifulSoup
 import json
+import random
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
+        # Lista de User-Agents para engañar al firewall
+        user_agents = [
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/118.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/119.0"
+        ]
+
+        # Creamos el scraper con un agente aleatorio de la lista
         scraper = cloudscraper.create_scraper(
-            browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True}
+            browser={
+                'browser': 'chrome',
+                'platform': 'windows',
+                'desktop': True,
+                'custom_agent': random.choice(user_agents)
+            }
         )
         
-        # URL de Rodio en Investing
         url = "https://es.investing.com/commodities/rhodium-99.99-futures"
         
         try:
-            # Investing es muy estricto, cloudscraper es clave aquí
+            # Añadimos un delay pequeño opcional si haces muchas peticiones
             res = scraper.get(url, timeout=20)
             
             if res.status_code == 200:
                 soup = BeautifulSoup(res.text, 'html.parser')
-                
-                # Selector específico de Investing para el precio actual
+                # Selector de Investing
                 elemento = soup.find(attrs={"data-test": "instrument-price-last"})
                 
                 if elemento:
-                    precio = elemento.text.strip()
                     payload = {
                         "material": "Rodio",
-                        "precio": precio,
-                        "moneda": "USD/OZ",
-                        "fuente": "Investing.com",
+                        "precio": elemento.text.strip(),
                         "status": "success"
                     }
                     status_code = 200
                 else:
-                    payload = {"error": "No se encontró el precio (selector data-test)"}
+                    payload = {"error": "No se encontro el selector"}
                     status_code = 404
             else:
-                payload = {"error": f"Error Investing: {res.status_code}"}
+                # Si sigue dando 403, devolvemos el error para saber
+                payload = {"error": f"Bloqueo detectado: {res.status_code}"}
                 status_code = res.status_code
                 
         except Exception as e:

@@ -7,55 +7,63 @@ import time
 
 class handler(BaseHTTPRequestHandler):
 
-    def obtener_precio(self, scraper, url):
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0',
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
-            'Accept-Language': 'es-ES,es;q=0.9',
-            'Connection': 'keep-alive',
-            'Referer': 'https://www.google.com/'
-        }
+    def obtener_precio_rodio(self, url):
+        # Configuramos el scraper con el motor de Firefox como pediste
+        scraper = cloudscraper.create_scraper(
+            browser={
+                'browser': 'firefox',
+                'platform': 'windows',
+                'mobile': False
+            }
+        )
         
         try:
-            # Bajamos el delay a 2 para que Vercel no nos corte la conexión
-            res = scraper.get(url, headers=headers, timeout=10)
+            # Headers realistas de navegación
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8',
+                'Accept-Language': 'es-ES,es;q=0.9',
+                'DNT': '1',
+                'Connection': 'keep-alive',
+                'Referer': 'https://www.google.com/',
+                'Sec-Fetch-Dest': 'document',
+                'Sec-Fetch-Mode': 'navigate',
+                'Sec-Fetch-Site': 'cross-site'
+            }
+            
+            # Delay aleatorio para evitar el 403 por repetición
+            time.sleep(random.uniform(1.0, 3.0))
+            
+            res = scraper.get(url, headers=headers, timeout=15)
             
             if res.status_code == 200:
                 soup = BeautifulSoup(res.text, "html.parser")
-                # Tu lógica de búsqueda múltiple
+                
+                # Tu lógica de selectores múltiples (muy efectiva)
                 tag = soup.find("div", {"data-test": "instrument-price-last"}) or \
                       soup.select_one('span[data-test="instrument-price-last"]') or \
                       soup.find("span", {"id": "last_last"})
                 
                 if tag:
+                    # Limpiamos comas para que sea un número puro si quieres procesarlo
                     return tag.get_text(strip=True).replace(',', '')
                 return "Tag_No_Encontrado"
             
             return f"Error_{res.status_code}"
             
-        except Exception:
+        except Exception as e:
             return "Error_Excepcion"
 
     def do_GET(self):
-        # Creamos un solo scraper para ambas peticiones (más eficiente)
-        scraper = cloudscraper.create_scraper(browser={'browser': 'firefox', 'platform': 'windows', 'mobile': False})
-
-        hierro_url = "https://www.investing.com/commodities/iron-ore-62-cfr-futures"
-        carbon_url = "https://www.investing.com/commodities/coal-cme-futures"
-
-        # Primera petición
-        h_val = self.obtener_precio(scraper, hierro_url)
+        url_rodio = "https://es.investing.com/commodities/rhodium-99.99-futures"
         
-        # Pequeño respiro aleatorio entre peticiones
-        time.sleep(random.uniform(0.5, 1.5))
-        
-        # Segunda petición
-        c_val = self.obtener_precio(scraper, carbon_url)
+        resultado = self.obtener_precio_rodio(url_rodio)
 
+        # Estructura de respuesta limpia
         datos = {
-            "hierro": h_val,
-            "carbon": c_val,
-            "status": "online" if "Error" not in h_val else "blocked"
+            "material": "Rodio",
+            "precio": resultado,
+            "status": "online" if "Error" not in resultado else "blocked"
         }
 
         self.send_response(200)
